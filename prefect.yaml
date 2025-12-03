@@ -1,0 +1,78 @@
+# Prefect configuration file (Prefect 3.0+)
+# Este arquivo é opcional e usado para configurar deployments do Prefect
+
+# Versão do Prefect
+prefect-version: 3.0.0
+
+# Nome do projeto
+name: inventory-anomaly-detector
+
+# Configurações de deployment
+deployments:
+  - name: inventory-anomaly-detection-production
+    version: 1.0.0
+    description: "Pipeline completo de detecção de anomalias em estoque e consumo"
+    entrypoint: src/pipeline.py:inventory_anomaly_detection_flow
+    tags:
+      - production
+      - anomaly-detection
+      - inventory
+    parameters:
+      data_file: null  # Usar arquivo padrão (data/inventory_data.csv)
+      send_alerts: true
+      send_email: false  # Mudar para true em produção (após configurar email)
+      generate_pdf_report: true
+    schedule: null  # Configurar schedule se necessário
+    # Exemplo de schedule diário às 8h:
+    # schedule:
+    #   cron: "0 8 * * *"
+    #   timezone: "America/Sao_Paulo"
+    work_pool:
+      name: default-agent-pool
+      work_queue_name: default
+      job_variables: {}
+    
+  - name: inventory-anomaly-detection-test
+    version: 1.0.0
+    description: "Pipeline de teste (sem alertas)"
+    entrypoint: src/pipeline.py:inventory_anomaly_detection_flow
+    tags:
+      - test
+      - anomaly-detection
+    parameters:
+      data_file: null
+      send_alerts: false
+      send_email: false
+      generate_pdf_report: true
+    schedule: null
+    work_pool:
+      name: default-agent-pool
+      work_queue_name: default
+      job_variables: {}
+
+# Configurações de build (opcional)
+# Executado antes de criar o deployment
+build: null
+# Exemplo:
+# build:
+#   - prefect.deployments.steps.set_working_directory:
+#       directory: "."
+
+# Configurações de push (opcional)
+# Para enviar código para repositório remoto
+push: null
+
+# Configurações de pull (opcional)
+# Para baixar código de repositório remoto
+pull: null
+# Exemplo:
+# pull:
+#   - prefect.deployments.steps.git_clone:
+#       repository: "https://github.com/your-repo/inventory-anomaly-detector.git"
+#       branch: main
+
+# Configurações de variáveis de ambiente (opcional)
+# Pode ser usado para configurar credenciais sem hardcode
+# env:
+#   PREFECT_API_URL: "http://localhost:4200/api"
+#   GMAIL_APP_PASSWORD: "${GMAIL_APP_PASSWORD}"  # Variável de ambiente

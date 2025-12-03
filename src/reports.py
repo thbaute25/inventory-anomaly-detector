@@ -114,6 +114,7 @@ def create_anomaly_charts(
     # 4. Gráfico: Anomalias por data
     if len(anomalies) > 0 and 'data' in anomalies.columns:
         fig, ax = plt.subplots(figsize=(12, 6))
+        anomalies = anomalies.copy()  # Evitar warning do pandas
         anomalies['data'] = pd.to_datetime(anomalies['data'])
         anomalies_by_date = anomalies.groupby(anomalies['data'].dt.date).size().sort_values(ascending=False).head(10)
         ax.bar(range(len(anomalies_by_date)), anomalies_by_date.values, color='salmon')
