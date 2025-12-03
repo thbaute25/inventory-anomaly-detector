@@ -132,45 +132,82 @@ def format_anomaly_alert(
     if n_anomalies == 0:
         return "Nenhuma anomalia detectada."
     
-    message = f"**ALERTA: {n_anomalies} anomalia(s) detectada(s)**"
+    # Cabeçalho
+    message = "=" * 60 + "\n"
+    message += f"ALERTA: {n_anomalies} ANOMALIA(S) DETECTADA(S)\n"
+    message += "=" * 60 + "\n\n"
     
     if produto_id:
-        message += f" para produto {produto_id}"
+        message += f"Produto: {produto_id}\n"
     
-    message += "\n\n"
+    # Estatísticas gerais
+    if "anomaly_score" in df_anomalies.columns:
+        avg_score = df_anomalies["anomaly_score"].mean()
+        max_score = df_anomalies["anomaly_score"].max()
+        message += f"\nEstatísticas:\n"
+        message += f"  - Score médio: {avg_score:.4f}\n"
+        message += f"  - Score máximo: {max_score:.4f}\n"
     
-    # Listar anomalias
-    anomalies_list = df_anomalies.head(max_anomalies)
+    message += "\n" + "-" * 60 + "\n"
+    message += "DETALHES DAS ANOMALIAS:\n"
+    message += "-" * 60 + "\n\n"
+    
+    # Listar anomalias (ordenadas por score se disponível)
+    anomalies_list = df_anomalies.copy()
+    if "anomaly_score" in anomalies_list.columns:
+        anomalies_list = anomalies_list.sort_values("anomaly_score", ascending=False)
+    anomalies_list = anomalies_list.head(max_anomalies)
     
     for idx, (_, row) in enumerate(anomalies_list.iterrows(), 1):
-        message += f"**Anomalia {idx}:**\n"
+        message += f"[{idx}] Anomalia Detectada\n"
+        message += "-" * 40 + "\n"
         
         if "data" in row or "ds" in row:
             date_col = "data" if "data" in row else "ds"
-            message += f"- Data: {row[date_col]}\n"
+            date_val = row[date_col]
+            if hasattr(date_val, 'strftime'):
+                date_val = date_val.strftime('%Y-%m-%d')
+            message += f"  Data: {date_val}\n"
         
         if "produto_id" in row:
-            message += f"- Produto: {row['produto_id']}\n"
+            message += f"  Produto: {row['produto_id']}\n"
         
+        # Consumo
+        consumo_val = None
         if "consumo_mean" in row:
-            message += f"- Consumo: {row['consumo_mean']:.2f}\n"
+            consumo_val = row['consumo_mean']
         elif "consumo" in row:
-            message += f"- Consumo: {row['consumo']:.2f}\n"
+            consumo_val = row['consumo']
         elif "y" in row:
-            message += f"- Consumo: {row['y']:.2f}\n"
+            consumo_val = row['y']
         
+        if consumo_val is not None:
+            message += f"  Consumo: {consumo_val:.2f}\n"
+        
+        # Estoque
+        estoque_val = None
         if "estoque_mean" in row:
-            message += f"- Estoque: {row['estoque_mean']:.2f}\n"
+            estoque_val = row['estoque_mean']
         elif "estoque" in row:
-            message += f"- Estoque: {row['estoque']:.2f}\n"
+            estoque_val = row['estoque']
         
+        if estoque_val is not None:
+            message += f"  Estoque: {estoque_val:.2f}\n"
+        
+        # Score
         if "anomaly_score" in row:
-            message += f"- Score: {row['anomaly_score']:.4f}\n"
+            score = row['anomaly_score']
+            severity = "CRÍTICA" if score > 0.7 else "ALTA" if score > 0.6 else "MÉDIA"
+            message += f"  Score: {score:.4f} ({severity})\n"
         
         message += "\n"
     
     if n_anomalies > max_anomalies:
-        message += f"\n... e mais {n_anomalies - max_anomalies} anomalia(s)."
+        message += f"... e mais {n_anomalies - max_anomalies} anomalia(s) não listada(s).\n"
+    
+    message += "=" * 60 + "\n"
+    message += f"Total: {n_anomalies} anomalia(s) detectada(s)\n"
+    message += "=" * 60
     
     return message
 
@@ -386,30 +423,56 @@ def format_anomaly_email_html(
     <html>
     <head>
         <style>
-            body {{ font-family: Arial, sans-serif; }}
-            .header {{ background-color: #ff4444; color: white; padding: 10px; }}
-            .content {{ padding: 20px; }}
-            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
-            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-            th {{ background-color: #f2f2f2; }}
-            .score-high {{ color: #ff0000; font-weight: bold; }}
+            body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; }}
+            .container {{ max-width: 800px; margin: 0 auto; }}
+            .header {{ background-color: #ff4444; color: white; padding: 20px; text-align: center; }}
+            .header h1 {{ margin: 0; font-size: 24px; }}
+            .content {{ padding: 20px; background-color: #f9f9f9; }}
+            .stats {{ background-color: white; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #ff4444; }}
+            .stats h3 {{ margin-top: 0; color: #333; }}
+            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; background-color: white; }}
+            th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+            th {{ background-color: #f2f2f2; font-weight: bold; color: #333; }}
+            tr:nth-child(even) {{ background-color: #f9f9f9; }}
+            .score-critical {{ color: #ff0000; font-weight: bold; }}
+            .score-high {{ color: #ff6600; font-weight: bold; }}
+            .score-medium {{ color: #ffaa00; font-weight: bold; }}
+            .footer {{ background-color: #333; color: white; padding: 10px; text-align: center; font-size: 12px; }}
         </style>
     </head>
     <body>
-        <div class="header">
-            <h2>ALERTA: {n_anomalies} Anomalia(s) Detectada(s)</h2>
+        <div class="container">
+            <div class="header">
+                <h1>ALERTA: {n_anomalies} Anomalia(s) Detectada(s)</h1>
     """
     
     if produto_id:
-        html += f"<p>Produto: {produto_id}</p>"
+        html += f"<p style='margin: 10px 0 0 0; font-size: 16px;'>Produto: {produto_id}</p>"
     
-    html += """
-        </div>
-        <div class="content">
-            <h3>Detalhes das Anomalias:</h3>
-            <table>
-                <tr>
-    """
+    # Estatísticas
+    if "anomaly_score" in df_anomalies.columns:
+        avg_score = df_anomalies["anomaly_score"].mean()
+        max_score = df_anomalies["anomaly_score"].max()
+        html += """
+            </div>
+            <div class="content">
+                <div class="stats">
+                    <h3>Estatísticas</h3>
+                    <p><strong>Score médio:</strong> """ + f"{avg_score:.4f}" + """</p>
+                    <p><strong>Score máximo:</strong> """ + f"{max_score:.4f}" + """</p>
+                </div>
+                <h3>Detalhes das Anomalias:</h3>
+                <table>
+                    <tr>
+        """
+    else:
+        html += """
+            </div>
+            <div class="content">
+                <h3>Detalhes das Anomalias:</h3>
+                <table>
+                    <tr>
+        """
     
     # Cabeçalhos da tabela
     columns = []
@@ -437,13 +500,21 @@ def format_anomaly_email_html(
                 </tr>
     """
     
+    # Ordenar por score se disponível
+    anomalies_sorted = df_anomalies.copy()
+    if "anomaly_score" in anomalies_sorted.columns:
+        anomalies_sorted = anomalies_sorted.sort_values("anomaly_score", ascending=False)
+    
     # Dados das anomalias
-    for _, row in df_anomalies.head(20).iterrows():
+    for _, row in anomalies_sorted.head(20).iterrows():
         html += "<tr>"
         
         if "data" in row or "ds" in row:
             date_col = "data" if "data" in row else "ds"
-            html += f"<td>{row[date_col]}</td>"
+            date_val = row[date_col]
+            if hasattr(date_val, 'strftime'):
+                date_val = date_val.strftime('%Y-%m-%d')
+            html += f"<td>{date_val}</td>"
         
         if "produto_id" in row:
             html += f"<td>{row['produto_id']}</td>"
@@ -461,19 +532,35 @@ def format_anomaly_email_html(
             html += f"<td>{row['estoque']:.2f}</td>"
         
         if "anomaly_score" in row:
-            score_class = "score-high" if row['anomaly_score'] > 0.7 else ""
-            html += f"<td class='{score_class}'>{row['anomaly_score']:.4f}</td>"
+            score = row['anomaly_score']
+            if score > 0.7:
+                score_class = "score-critical"
+                severity = "CRÍTICA"
+            elif score > 0.6:
+                score_class = "score-high"
+                severity = "ALTA"
+            else:
+                score_class = "score-medium"
+                severity = "MÉDIA"
+            html += f"<td class='{score_class}'>{score:.4f} ({severity})</td>"
         
         html += "</tr>"
     
     html += """
-            </table>
+                    </table>
     """
     
     if n_anomalies > 20:
-        html += f"<p><em>... e mais {n_anomalies - 20} anomalia(s).</em></p>"
+        html += f"<p style='margin-top: 15px; color: #666;'><em>... e mais {n_anomalies - 20} anomalia(s) não listada(s).</em></p>"
     
-    html += """
+    html += f"""
+                <p style='margin-top: 20px; padding: 10px; background-color: #fff; border-left: 4px solid #ff4444;'>
+                    <strong>Total:</strong> {n_anomalies} anomalia(s) detectada(s)
+                </p>
+            </div>
+            <div class="footer">
+                <p>Inventory Anomaly Detector - Sistema Automatizado de Detecção de Anomalias</p>
+            </div>
         </div>
     </body>
     </html>
