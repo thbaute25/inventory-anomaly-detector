@@ -227,7 +227,72 @@ except Exception as e:
 
 print()
 
-# 9. Resumo final
+# 9. Treinar Isolation Forest e detectar anomalias
+print("9. Treinando Isolation Forest e detectando anomalias...")
+print("-" * 60)
+try:
+    from src.anomalies import detect_anomalies_consumo_estoque, save_anomaly_model
+    
+    # Detectar anomalias nos dados agregados
+    df_with_anomalies, anomaly_model = detect_anomalies_consumo_estoque(
+        df_aggregated,
+        consumo_column="consumo_mean",
+        estoque_column="estoque_mean",
+        contamination=0.1
+    )
+    
+    # Filtrar apenas anomalias
+    anomalies = df_with_anomalies[df_with_anomalies["is_anomaly"]]
+    print(f"   [OK] Anomalias detectadas: {len(anomalies)}")
+    
+    if len(anomalies) > 0:
+        print(f"   - Exemplo de anomalias:")
+        print(anomalies[["produto_id", "data", "consumo_mean", "estoque_mean", "anomaly_score"]].head(5).to_string(index=False))
+    
+    # Salvar modelo de anomalias
+    model_path = Path("outputs/models/isolation_forest_model.pkl.gz")
+    save_anomaly_model(anomaly_model, model_path, compress=True)
+    
+    # Salvar resultados em CSV e Parquet
+    from src.data_cleaning import save_processed
+    
+    # Salvar CSV
+    output_path_csv = Path("outputs/anomalies_detected.csv")
+    save_processed(df_with_anomalies, output_path_csv, format="csv")
+    
+    # Salvar Parquet (mais eficiente para grandes volumes)
+    output_path_parquet = Path("outputs/anomalies_detected.parquet")
+    save_processed(df_with_anomalies, output_path_parquet, format="parquet", compress=True)
+    
+    # Salvar apenas anomalias em CSV e Parquet
+    if len(anomalies) > 0:
+        anomalies_csv = Path("outputs/anomalies_only.csv")
+        save_processed(anomalies, anomalies_csv, format="csv")
+        
+        anomalies_parquet = Path("outputs/anomalies_only.parquet")
+        save_processed(anomalies, anomalies_parquet, format="parquet", compress=True)
+        
+        print(f"   [OK] Apenas anomalias salvas em CSV e Parquet")
+    
+    print(f"   [OK] Todos os dados salvos em CSV e Parquet")
+    
+    # Exemplo de envio de alertas (descomente e configure webhooks para usar)
+    # from src.alerts import send_anomaly_alerts
+    # send_anomaly_alerts(
+    #     df_with_anomalies,
+    #     send_discord=False,  # Configure webhook no config.py primeiro
+    #     send_teams=False     # Configure webhook no config.py primeiro
+    # )
+    
+except Exception as e:
+    print(f"   [ERRO] Erro ao detectar anomalias: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+
+print()
+
+# 10. Resumo final
 print("=" * 60)
 print("RESUMO DO TESTE")
 print("=" * 60)
@@ -237,11 +302,13 @@ print(f"[OK] Dados limpos: {len(consumo_limpo)} registros")
 print(f"[OK] Features de lag criadas: {len([col for col in consumo_com_lags.columns if 'lag' in col])} features")
 print(f"[OK] Agregados diários por item: {len(df_aggregated)} registros")
 print(f"[OK] Modelos Prophet treinados: {len(prophet_models)} modelos")
+print(f"[OK] Isolation Forest treinado e anomalias detectadas")
 print(f"[OK] Arquivo processado salvo em: outputs/processed_consumo.csv")
 print(f"[OK] Arquivo com features salvo em: outputs/consumo_with_features.csv")
 print(f"[OK] Arquivo agregados salvo em: outputs/daily_aggregated_by_item.csv")
 print(f"[OK] Previsões 7 dias salvas em: outputs/forecast_7d.csv")
 print(f"[OK] Previsões 30 dias salvas em: outputs/forecast_30d.csv")
+print(f"[OK] Anomalias salvas em CSV e Parquet: outputs/anomalies_detected.*")
 print()
 print("Pipeline funcionando corretamente até este ponto!")
 print("=" * 60)

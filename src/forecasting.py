@@ -354,3 +354,80 @@ def forecast_7_days_by_product(
     """
     return forecast_by_product(models, periods=7, freq="D")
 
+
+def plot_real_vs_predicted(
+    model: Prophet,
+    df_real: pd.DataFrame,
+    figsize: tuple = (15, 6),
+    title: Optional[str] = None
+) -> None:
+    """
+    Plota valores reais vs valores previstos pelo modelo Prophet.
+    
+    Args:
+        model: Modelo Prophet treinado.
+        df_real: DataFrame com dados reais (colunas 'ds' e 'y').
+        figsize: Tamanho da figura.
+        title: Título do gráfico. Se None, usa título padrão.
+    """
+    import matplotlib.pyplot as plt
+    
+    # Fazer previsão para os dados reais
+    forecast = model.predict(df_real[["ds"]])
+    
+    # Preparar dados
+    df_plot = pd.DataFrame({
+        "ds": df_real["ds"].values,
+        "real": df_real["y"].values,
+        "previsto": forecast["yhat"].values
+    })
+    
+    # Remover valores NaN
+    df_plot = df_plot.dropna()
+    
+    if len(df_plot) == 0:
+        raise ValueError("Não há dados válidos para plotar.")
+    
+    # Criar figura
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Plot 1: Série temporal - Real vs Previsto
+    ax1.plot(df_plot["ds"], df_plot["real"], "o-", label="Real", linewidth=2, markersize=4, alpha=0.7)
+    ax1.plot(df_plot["ds"], df_plot["previsto"], "s-", label="Previsto", linewidth=2, markersize=4, alpha=0.7, color="red")
+    ax1.set_xlabel("Data")
+    ax1.set_ylabel("Consumo")
+    ax1.set_title("Série Temporal: Real vs Previsto")
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    ax1.tick_params(axis="x", rotation=45)
+    
+    # Plot 2: Scatter plot - Real vs Previsto
+    ax2.scatter(df_plot["real"], df_plot["previsto"], alpha=0.6, s=50)
+    
+    # Linha de referência (y=x)
+    min_val = min(df_plot["real"].min(), df_plot["previsto"].min())
+    max_val = max(df_plot["real"].max(), df_plot["previsto"].max())
+    ax2.plot([min_val, max_val], [min_val, max_val], "r--", linewidth=2, label="Linha Perfeita (y=x)")
+    
+    ax2.set_xlabel("Valor Real")
+    ax2.set_ylabel("Valor Previsto")
+    ax2.set_title("Scatter Plot: Real vs Previsto")
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    # Calcular métricas
+    mae = np.mean(np.abs(df_plot["real"] - df_plot["previsto"]))
+    rmse = np.sqrt(np.mean((df_plot["real"] - df_plot["previsto"]) ** 2))
+    
+    # Adicionar métricas ao título geral
+    if title is None:
+        title = f"Real vs Previsto (MAE: {mae:.2f}, RMSE: {rmse:.2f})"
+    
+    fig.suptitle(title, fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    plt.show()
+    
+    print(f"\nMétricas:")
+    print(f"  - MAE: {mae:.4f}")
+    print(f"  - RMSE: {rmse:.4f}")
+

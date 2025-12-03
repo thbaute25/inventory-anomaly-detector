@@ -58,6 +58,17 @@ ALERT_CONFIG = {
     "min_anomaly_score": 0.7,  # Score mínimo para enviar alerta
 }
 
+# Configurações de email
+EMAIL_CONFIG = {
+    "smtp_server": None,  # Ex: "smtp.gmail.com"
+    "smtp_port": 587,  # Porta SMTP (587 para TLS, 465 para SSL)
+    "smtp_username": None,  # Email do remetente
+    "smtp_password": None,  # Senha ou app password
+    "from_email": None,  # Email do remetente
+    "to_emails": [],  # Lista de emails destinatários
+    "use_tls": True,  # Usar TLS
+}
+
 # Configurações de relatório PDF
 REPORT_CONFIG = {
     "title": "Relatório de Anomalias em Estoque e Consumo",
