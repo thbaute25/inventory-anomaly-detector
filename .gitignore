@@ -44,6 +44,9 @@ data/*.csv
 outputs/*
 !outputs/.gitkeep
 
+# Configurações sensíveis (não commitar senhas)
+# src/config.py pode conter senhas - cuidado ao commitar!
+
 # OS
 .DS_Store
 Thumbs.db
